@@ -5,7 +5,7 @@ Environment
 -----------
 * Python 3.5.2
 * Asterisk 16.20
-* Ubuntu 16
+* Ubuntu 16.04 LTS
 
 Installation
 ------------
