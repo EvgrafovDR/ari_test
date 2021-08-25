@@ -44,6 +44,14 @@ class CallManager:
 
     def __init__(self, ari):
         self.ari = ari
+        config_file = "configs/calls.ini"
+        config_obj = configparser.ConfigParser()
+        config_obj.readfp(open(config_file))
+        self.calls_count = int(config_obj.get("calls", "count"))
+        self.driver = config_obj.get("calls", "driver")
+        self.trunk = config_obj.get("calls", "trunk")
+        self.phone = config_obj.get("calls", "phone")
+        self.callerid = config_obj.get("calls", "callerid")
 
     def start_call(self, ari, event):
         channel = event.channel
@@ -65,10 +73,9 @@ class CallManager:
 
     def run(self):
         self.ari.append_callback("StasisStart", self.start_call)
-        calls_count = 100
         threads = []
-        for i in range(1, calls_count):
-            threads.append(self.send_call(i, "SIP", "local", "79000000004", "79000000003"))
+        for i in range(1, self.calls_count):
+            threads.append(self.send_call(i, self.driver, self.trunk, self.phone, self.callerid))
         for thread in threads:
             thread.join()
 
