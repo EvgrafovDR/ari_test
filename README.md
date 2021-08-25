@@ -18,6 +18,13 @@ Configuration
 
 `configs/calls.ini` call settings
 
+Call settings
+-------------
+* `count` is simultaneous calls count
+* `driver` is channel driver (SIP/PJSIP)
+* `phone` is called phone number
+* `callerid` is callerid for this call
+* `trunk` is SIP trunk to call
 
 Usage
 -----
