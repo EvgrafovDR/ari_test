@@ -28,11 +28,6 @@ class Call:
         self.channel.answer()
         sound_bridge = self.ari.create_bridge()
         sound_bridge.add_channels([self.channel.id])
-        record_name = "%s_recording" % self.channel.id
-        sound_bridge.record(record_name)
-        timeout = 2
-        sound_bridge.play_silence(timeout)
-        time.sleep(int(timeout))
         file_name = "mid_sound"
         storage_path = os.path.dirname(os.path.abspath(__file__)) + '/sounds'
         sound = "%s/%s" % (storage_path, file_name)
