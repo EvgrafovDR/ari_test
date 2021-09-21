@@ -185,7 +185,6 @@ class Ari:
             if hasattr(events, data["type"]):
                 event = self.create_event(data)
                 self._cb_queue.put(event)
-                return True
 
     def on_error(self, ws, error):
         if not self._closed:
@@ -229,21 +228,16 @@ class Ari:
         if params is not None:
             params = urllib.parse.urlencode(params)
             uri = "%s?%s" % (uri, params)
-        done = False
-        retry = 1
-        while not done and retry < self.MAX_RETRIES:
-            try:
-                retry += 1
-                connection = http.client.HTTPConnection(self.url, timeout=10)
-                connection.request(method, uri,
-                                   headers={"Authorization": self._auth_header, "Content-Type": "application/json"},
-                                   body=body)
-                res = connection.getresponse()
-                data = res.read().decode()
-                done = True
-            except Exception as ex:
-                logging.error("send request %s error in line %s: %s, retry in %d seconds" % (uri, str(sys.exc_info()[-1].tb_lineno), str(ex), self.RETRY_TIMEOUT))
-                time.sleep(self.RETRY_TIMEOUT)
+        try:
+            connection = http.client.HTTPConnection(self.url, timeout=10)
+            connection.request(method, uri,
+                               headers={"Authorization": self._auth_header, "Content-Type": "application/json"},
+                               body=body)
+            res = connection.getresponse()
+            data = res.read().decode()
+        except Exception as ex:
+            logging.error("send request %s error in line %s: %s" % (uri, str(sys.exc_info()[-1].tb_lineno), str(ex)))
+            raise ex
         if len(data) > 0 and (res.status == 200 or res.status == 201):
             result = json.loads(data)
             logging.debug("Response from %s: %s" % (uri, data))
