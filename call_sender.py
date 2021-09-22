@@ -57,12 +57,15 @@ class CallManager:
         config_obj = configparser.ConfigParser()
         config_obj.readfp(open(config_file))
         self.calls_count = int(config_obj.get("calls", "count"))
+        self.semaphore = threading.Semaphore(int(self.calls_count))
         self.driver = config_obj.get("calls", "driver")
         self.trunk = config_obj.get("calls", "trunk")
         self.phone = config_obj.get("calls", "phone")
         self.callerid = config_obj.get("calls", "callerid")
         self.calls = []
         self.sent_calls = 0
+        self._terminate = False
+        self.run_thread = None
 
     def start_call(self, ari, event):
         channel = event.channel
@@ -70,12 +73,17 @@ class CallManager:
         self.calls.append(call)
         call.start()
 
+
+    def end_call(self, ari, event):
+        self.semaphore.release()
+
     def create_channel(self, channel_id, dial_string, caller_id):
         try:
             self.ari.create_channel(channel_id, dial_string, caller_id)
             self.sent_calls += 1
         except Exception as ex:
             print("create channel error: %s" % str(ex))
+            self.semaphore.release()
 
     def send_call(self, channel_id, driver, trunk, phone, caller_id):
         if driver == "PJSIP":
@@ -87,17 +95,22 @@ class CallManager:
                                                 dial_string,
                                                 caller_id))
         sending_thread.daemon = True
+        self.semaphore.acquire()
         sending_thread.start()
         return sending_thread
 
+    def run_async(self):
+        self.run_thread = threading.Thread(target=self.run)
+        self.run_thread.daemon = True
+        self.run_thread.start()
+
     def run(self):
         self.ari.append_callback("StasisStart", self.start_call)
-        threads = []
-        for i in range(1, self.calls_count):
-            time.sleep(0.2)
-            threads.append(self.send_call(i, self.driver, self.trunk, self.phone, self.callerid))
-        for thread in threads:
-            thread.join()
+        self.ari.append_callback("StasisEnd", self.end_call)
+        call_num = 1
+        while not self._terminate:
+            self.send_call(call_num, self.driver, self.trunk, self.phone, self.callerid)
+            call_num += 1
             
     def get_stat(self):
         result = {
@@ -112,6 +125,12 @@ class CallManager:
             for stat_key in result.keys():
                 result[stat_key] += call.stat[stat_key]
         return result
+
+    def terminate(self):
+        self._terminate = True
+        self.semaphore.release()
+        if self.run_thread:
+            self.run_thread.join()
 
     def print_stat(self):
         stat = self.get_stat()
@@ -137,6 +156,7 @@ def main():
     call_manager.run()
     while not terminate:
         time.sleep(3)
+    call_manager.terminate()
     call_manager.print_stat()
 
 
