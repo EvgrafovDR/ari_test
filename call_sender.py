@@ -153,7 +153,7 @@ def main():
     ari_client = Ari("%s:%s" % (ari_host, ari_port), ari_user, ari_secret, ari_app)
     ari_client.run()
     call_manager = CallManager(ari_client)
-    call_manager.run()
+    call_manager.run_async()
     while not terminate:
         time.sleep(3)
     call_manager.terminate()
