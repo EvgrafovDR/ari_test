@@ -2,11 +2,20 @@ import ntpath
 import os
 import signal
 import configparser
+import string
 import sys
 import threading
 import time
+import random
 
 from libraries.ari.ari import Ari
+
+
+def get_random_string(length):
+    # Random string with the combination of lower and upper case
+    letters = string.ascii_letters
+    result_str = ''.join(random.choice(letters) for i in range(length))
+    return result_str
 
 
 class Call:
@@ -44,6 +53,8 @@ class Call:
         file_name = "mid_sound"
         storage_path = os.path.dirname(os.path.abspath(__file__)) + '/sounds'
         sound = "%s/%s" % (storage_path, file_name)
+        record_name = get_random_string(20)
+        sound_bridge.record(record_name)
         playback = sound_bridge.play("sound:%s" % sound)
         self.stat["playback_started"] = 1
         playback.append_callback("PlaybackFinished", self.playback_finished)
