@@ -33,11 +33,16 @@ class Call:
         }
         self.start_thread = threading.Thread(target=self._start)
         self.start_thread.daemon = True
+        self.bridges = []
+        self.snoop_spy_channel = None
 
     def playback_finished(self, ari, event, playback):
         print("playback finished")
         self.stat["playback_finished"] = 1
         self.channel.close()
+        self.snoop_spy_channel.close()
+        for bridge in self.bridges:
+            bridge.close()
         self.stat["finished"] = 1
 
     def start(self):
@@ -47,6 +52,7 @@ class Call:
         self.channel.answer()
         self.stat["answered"] = 1
         sound_bridge = self.ari.create_bridge()
+        self.bridges.append(sound_bridge)
         self.stat["bridge_created"] = 1
         sound_bridge.add_channels([self.channel.id])
         self.stat["channel_added"] = 1
@@ -54,7 +60,10 @@ class Call:
         storage_path = os.path.dirname(os.path.abspath(__file__)) + '/sounds'
         sound = "%s/%s" % (storage_path, file_name)
         record_name = get_random_string(20)
-        sound_bridge.record(record_name)
+        sound_bridge.record("test_" + record_name)
+        media_bridge = self.ari.create_bridge()
+        self.bridges.append(media_bridge)
+        self.snoop_spy_channel = self.channel.snoop()
         playback = sound_bridge.play("sound:%s" % sound)
         self.stat["playback_started"] = 1
         playback.append_callback("PlaybackFinished", self.playback_finished)
