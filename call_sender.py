@@ -128,7 +128,7 @@ class CallManager:
 
     def run(self):
         self.ari.append_callback("StasisStart", self.start_call)
-        self.ari.append_callback("StasisEnd", self.end_call)
+        self.ari.append_callback("ChannelDestroyed", self.end_call)
         call_num = 1
         while not self._terminate:
             self.send_call(call_num, self.driver, self.trunk, self.phone, self.callerid)
