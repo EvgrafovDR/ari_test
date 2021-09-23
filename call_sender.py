@@ -89,9 +89,10 @@ class CallManager:
 
     def start_call(self, ari, event):
         channel = event.channel
-        call = Call(channel, ari)
-        self.calls.append(call)
-        call.start()
+        if channel.protocol in ["PJSIP", "SIP"]:
+            call = Call(channel, ari)
+            self.calls.append(call)
+            call.start()
 
 
     def end_call(self, ari, event):
