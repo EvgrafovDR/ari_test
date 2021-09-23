@@ -94,9 +94,10 @@ class CallManager:
             self.calls.append(call)
             call.start()
 
-
     def end_call(self, ari, event):
-        self.semaphore.release()
+        channel = event.channel
+        if channel.protocol in ["PJSIP", "SIP"]:
+            self.semaphore.release()
 
     def create_channel(self, channel_id, dial_string, caller_id):
         try:
