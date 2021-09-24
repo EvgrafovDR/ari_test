@@ -2,6 +2,7 @@ import ntpath
 import os
 import signal
 import configparser
+import socket
 import string
 import sys
 import threading
@@ -18,10 +19,64 @@ def get_random_string(length):
     return result_str
 
 
+class SocketServer:
+
+    def __init__(self):
+        self._sock = None
+        self._sock_type = socket.SOCK_DGRAM
+        self._sock_family = socket.AF_INET
+        self._host = "127.0.0.1"
+        self._port = 55444
+        self.opened = True
+        self.connect()
+
+    def connect(self):
+        self._sock = socket.socket(self._sock_family, self._sock_type)
+        self._sock.bind((self._host, self._port))
+
+    def start(self):
+        server_thread = threading.Thread(target=self.receive)
+        server_thread.daemon = True
+        server_thread.start()
+
+    def receive(self):
+        while self.opened:
+            try:
+                data, addr = self._sock.recvfrom(1024)
+            except Exception as ex:
+                if self.opened:
+                    print("SOCKET ERROR")
+
+    def close(self):
+        """
+        Closes the connection
+        """
+        if self.opened:
+            self.opened = False
+            self._close_socket()
+
+    def _close_socket(self):
+        if self._sock is not None:
+            try:
+                self._sock.shutdown(socket.SHUT_RDWR)
+            except:
+                pass
+
+            try:
+                self._sock.close()
+            except:
+                pass
+            self._sock = None
+
+    def terminate(self):
+        self.close()
+
+
 class Call:
 
     def __init__(self, channel, ari):
         self.channel = channel
+        self.id = get_random_string(20)
         self.ari = ari
         self.stat = {
             "playback_started": 0,
@@ -35,12 +90,16 @@ class Call:
         self.start_thread.daemon = True
         self.bridges = []
         self.snoop_spy_channel = None
+        self.robot_channel = None
+        self.media_bridge = None
 
     def playback_finished(self, ari, event, playback):
         print("playback finished")
         self.stat["playback_finished"] = 1
         self.channel.close()
         self.snoop_spy_channel.close()
+        if self.robot_channel:
+            self.robot_channel.close()
         for bridge in self.bridges:
             bridge.close()
         self.stat["finished"] = 1
@@ -48,25 +107,47 @@ class Call:
     def start(self):
         self.start_thread.start()
 
-    def _start(self):
-        self.channel.answer()
-        self.stat["answered"] = 1
+    def create_sound_bridge(self):
         sound_bridge = self.ari.create_bridge()
         self.bridges.append(sound_bridge)
         self.stat["bridge_created"] = 1
         sound_bridge.add_channels([self.channel.id])
         self.stat["channel_added"] = 1
+        return sound_bridge
+
+    def start_recording(self, sound_bridge):
+        sound_bridge.record("test_" + self.id)
+
+    def start_playback(self, sound_bridge):
         file_name = "mid_sound"
         storage_path = os.path.dirname(os.path.abspath(__file__)) + '/sounds'
         sound = "%s/%s" % (storage_path, file_name)
-        record_name = get_random_string(20)
-        sound_bridge.record("test_" + record_name)
-        media_bridge = self.ari.create_bridge()
-        self.bridges.append(media_bridge)
-        self.snoop_spy_channel = self.channel.snoop()
         playback = sound_bridge.play("sound:%s" % sound)
         self.stat["playback_started"] = 1
         playback.append_callback("PlaybackFinished", self.playback_finished)
+
+    def start_spy(self):
+        media_bridge = self.ari.create_bridge()
+        self.bridges.append(media_bridge)
+        self.snoop_spy_channel = self.channel.snoop()
+        return media_bridge
+
+    def robot_channel_up(self, ari, event, channel):
+        self.media_bridge.add_channels([self.snoop_spy_channel.id, channel.id])
+
+    def start_robot_media(self, port):
+        robot_channel_id = "robot_%s" % self.id
+        self.ari.append_callback("StasisStart", self.robot_channel_up, robot_channel_id)
+        self.robot_channel = self.ari.external_media(media_port=port, channel_id=robot_channel_id)
+
+    def _start(self):
+        self.channel.answer()
+        self.stat["answered"] = 1
+        sound_bridge = self.create_sound_bridge()
+        self.start_recording(sound_bridge)
+        self.media_bridge = self.start_spy()
+        self.start_robot_media(55444)
+        self.start_playback(sound_bridge)
 
 
 class CallManager:
@@ -86,6 +167,8 @@ class CallManager:
         self.sent_calls = 0
         self._terminate = False
         self.run_thread = None
+        self.socket_server = SocketServer()
+        self.socket_server.start()
 
     def start_call(self, ari, event):
         channel = event.channel
@@ -153,6 +236,7 @@ class CallManager:
         self.semaphore.release()
         if self.run_thread:
             self.run_thread.join()
+        self.socket_server.terminate()
 
     def print_stat(self):
         stat = self.get_stat()
